@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Market Piston | Supply and Demand Laboratory</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #081015;
+      --surface: #0d181e;
+      --surface-2: #122129;
+      --line: #29414a;
+      --line-soft: #1b3038;
+      --text: #edf5f3;
+      --muted: #8fa4a8;
+      --demand: #42c8c4;
+      --supply: #ff7c6d;
+      --equilibrium: #efc65d;
+      --quantity: #8eb4ff;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    button, input { font: inherit; color: inherit; }
+    .app { min-height: 100svh; display: grid; grid-template-rows: 64px minmax(0, 1fr); }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      padding: 0 18px; border-bottom: 1px solid var(--line); background: #0b151a;
+    }
+    .brand { min-width: 0; }
+    .brand strong { display: block; font-size: 14px; letter-spacing: .02em; }
+    .brand span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .toolbar { display: flex; align-items: center; gap: 8px; }
+    .live-mark { width: 7px; height: 7px; border-radius: 50%; background: var(--equilibrium); box-shadow: 0 0 0 4px rgba(239,198,93,.10); }
+    .live-label { margin-right: 7px; color: var(--muted); font-size: 9px; }
+    .icon-button {
+      width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line);
+      border-radius: var(--radius); background: var(--surface-2); cursor: pointer;
+    }
+    .icon-button:hover { border-color: #56727b; background: #193039; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--equilibrium); outline-offset: 2px; }
+
+    .shell { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 354px; }
+    .workspace { min-width: 0; min-height: 0; overflow: auto; }
+    aside { min-height: 0; overflow: auto; border-left: 1px solid var(--line); background: var(--surface); }
+
+    .preset-bar {
+      display: flex; align-items: center; gap: 7px; min-height: 52px; padding: 10px 18px;
+      border-bottom: 1px solid var(--line); overflow-x: auto;
+    }
+    .preset-bar > span { margin-right: 4px; color: var(--muted); font-size: 9px; font-weight: 750; text-transform: uppercase; white-space: nowrap; }
+    .preset {
+      min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius);
+      color: var(--muted); background: transparent; font-size: 9px; font-weight: 700; white-space: nowrap; cursor: pointer;
+    }
+    .preset:hover, .preset.active { color: var(--text); border-color: #56727b; background: var(--surface-2); }
+
+    .readout-strip { display: grid; grid-template-columns: 1.25fr repeat(3, 1fr); border-bottom: 1px solid var(--line); background: #0b161b; }
+    .state-readout, .readout { min-width: 0; padding: 16px 18px; border-right: 1px solid var(--line); }
+    .readout:last-child { border-right: 0; }
+    .state-readout span, .readout span { display: block; color: var(--muted); font-size: 8px; font-weight: 750; text-transform: uppercase; }
+    .state-readout strong { display: block; margin-top: 7px; color: var(--equilibrium); font-size: 19px; }
+    .state-readout small, .readout small { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .readout strong { display: block; margin-top: 7px; font-size: 17px; font-variant-numeric: tabular-nums; }
+
+    .visuals { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr); min-height: 490px; }
+    .visual-panel { position: relative; min-width: 0; background: var(--bg); }
+    .visual-panel:first-child { border-right: 1px solid var(--line); }
+    .panel-heading { position: absolute; z-index: 2; top: 15px; left: 18px; pointer-events: none; }
+    .panel-heading strong { display: block; font-size: 10px; }
+    .panel-heading span { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #chamberCanvas, #curveCanvas { min-height: 490px; }
+
+    .concept-chain {
+      display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #0c171c;
+    }
+    .concept-step { position: relative; min-width: 0; padding: 14px 15px; border-right: 1px solid var(--line-soft); }
+    .concept-step:last-child { border-right: 0; }
+    .concept-step:not(:last-child)::after { content: ">"; position: absolute; right: -4px; top: 24px; z-index: 2; color: var(--line); font-weight: 800; }
+    .concept-step span { display: block; color: var(--muted); font-size: 8px; text-transform: uppercase; }
+    .concept-step strong { display: block; margin-top: 5px; font-size: 10px; }
+    .concept-step.demand strong { color: var(--demand); }
+    .concept-step.supply strong { color: var(--supply); }
+    .concept-step.balance strong { color: var(--equilibrium); }
+
+    .lesson-note { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; padding: 18px; }
+    .lesson-note h2 { margin: 0 0 7px; font-size: 11px; }
+    .lesson-note p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.6; }
+
+    .section { padding: 17px 18px; border-bottom: 1px solid var(--line); }
+    .section h2 { margin: 0; font-size: 11px; }
+    .section > p { margin: 5px 0 15px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+    .group { margin-top: 18px; padding-left: 10px; border-left: 3px solid var(--demand); }
+    .group:first-of-type { margin-top: 0; }
+    .group.supply { border-left-color: var(--supply); }
+    .group h3 { margin: 0 0 11px; font-size: 9px; text-transform: uppercase; }
+    .control { margin-top: 12px; }
+    .control:first-of-type { margin-top: 0; }
+    .control-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+    .control label { color: var(--muted); font-size: 9px; }
+    .control output { font-size: 10px; font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; height: 17px; margin: 0; accent-color: var(--equilibrium); cursor: pointer; }
+    .group:not(.supply) input[type="range"] { accent-color: var(--demand); }
+    .group.supply input[type="range"] { accent-color: var(--supply); }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .switch-row span { color: var(--muted); font-size: 9px; }
+    .switch {
+      min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius);
+      background: var(--surface-2); font-size: 9px; font-weight: 750; cursor: pointer;
+    }
+    .switch[aria-pressed="false"] { color: #10191d; background: var(--equilibrium); border-color: var(--equilibrium); }
+    .formula-list { display: grid; gap: 10px; }
+    .formula { display: grid; gap: 4px; color: var(--muted); font-size: 8px; }
+    .formula code { color: var(--text); font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
+    .key { display: grid; gap: 8px; }
+    .key-row { display: grid; grid-template-columns: 44px 1fr; gap: 9px; font-size: 8px; line-height: 1.45; }
+    .key-row code { color: var(--equilibrium); font-family: "SFMono-Regular", Consolas, monospace; }
+    .key-row span { color: var(--muted); }
+    .disclaimer { margin: 0; padding-left: 10px; border-left: 3px solid var(--equilibrium); color: var(--muted); font-size: 9px; line-height: 1.55; }
+
+    @media (max-width: 1100px) {
+      .shell { grid-template-columns: 1fr; }
+      aside { border-left: 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(2, 1fr); overflow: visible; }
+      aside .section { border-right: 1px solid var(--line); }
+    }
+    @media (max-width: 760px) {
+      .brand span, .live-label { display: none; }
+      .readout-strip { grid-template-columns: 1fr 1fr; }
+      .state-readout { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
+      .readout:nth-child(3) { border-right: 0; }
+      .readout:last-child { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+      .visuals { grid-template-columns: 1fr; }
+      .visual-panel:first-child { border-right: 0; border-bottom: 1px solid var(--line); }
+      #chamberCanvas { min-height: 400px; }
+      #curveCanvas { min-height: 430px; }
+      .concept-chain { grid-template-columns: 1fr 1fr; }
+      .concept-step { border-bottom: 1px solid var(--line-soft); }
+      .concept-step::after { display: none; }
+      .concept-step:last-child { grid-column: 1 / -1; }
+      .lesson-note, aside { grid-template-columns: 1fr; }
+      aside .section { border-right: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) { .preset, .icon-button { transition: none; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <strong>Market Piston</strong>
+        <span>Supply and demand laboratory | gas-law analogy</span>
+      </div>
+      <div class="toolbar">
+        <i class="live-mark" aria-hidden="true"></i><span class="live-label">Free-market motion</span>
+        <button class="icon-button" id="pauseButton" type="button" title="Pause animation" aria-label="Pause animation">&#10074;&#10074;</button>
+        <button class="icon-button" id="resetButton" type="button" title="Reset laboratory" aria-label="Reset laboratory">&#8634;</button>
+      </div>
+    </header>
+
+    <div class="shell">
+      <section class="workspace" aria-label="Supply and demand simulation">
+        <nav class="preset-bar" aria-label="Market scenarios">
+          <span>Market scenarios</span>
+          <button class="preset active" type="button" data-preset="balance">Balanced market</button>
+          <button class="preset" type="button" data-preset="demandRise">Demand increases</button>
+          <button class="preset" type="button" data-preset="supplyExpansion">Supply expands</button>
+          <button class="preset" type="button" data-preset="costShock">Supply cost shock</button>
+          <button class="preset" type="button" data-preset="hotMarket">Both sides active</button>
+        </nav>
+
+        <section class="readout-strip" aria-label="Live market state">
+          <div class="state-readout"><span>Market condition</span><strong id="stateTitle">Market clearing</strong><small id="stateDetail">Demand pressure and supply pressure are balanced.</small></div>
+          <div class="readout"><span>Quantity Q</span><strong id="quantityOut">0.500</strong><small>Piston position</small></div>
+          <div class="readout"><span>Market price P*</span><strong id="priceOut">1.000</strong><small>Common pressure at equilibrium</small></div>
+          <div class="readout"><span>Excess pressure</span><strong id="deltaOut">+0.000</strong><small>PD - PS</small></div>
+        </section>
+
+        <section class="visuals">
+          <div class="visual-panel">
+            <div class="panel-heading"><strong>Market chamber</strong><span>The free piston moves toward the lower-pressure side.</span></div>
+            <canvas id="chamberCanvas" aria-label="Demand and supply gas chambers separated by a free-moving piston"></canvas>
+          </div>
+          <div class="visual-panel">
+            <div class="panel-heading"><strong>Supply and demand curves</strong><span>The same gas equations draw both curves.</span></div>
+            <canvas id="curveCanvas" aria-label="Demand and supply curves with a moving market equilibrium"></canvas>
+          </div>
+        </section>
+
+        <section class="concept-chain" aria-label="Concept mapping">
+          <div class="concept-step demand"><span>Demand gas</span><strong>Buyer intensity AD</strong></div>
+          <div class="concept-step demand"><span>Demand pressure</span><strong>PD = AD / Q</strong></div>
+          <div class="concept-step balance"><span>Free piston</span><strong>Quantity adjusts</strong></div>
+          <div class="concept-step supply"><span>Supply pressure</span><strong>PS = AS / (V - Q)</strong></div>
+          <div class="concept-step balance"><span>Market clearing</span><strong>PD = PS = P*</strong></div>
+        </section>
+
+        <section class="lesson-note">
+          <div>
+            <h2>What the motion illustrates</h2>
+            <p>If demand pressure is greater than supply pressure, the piston moves right: quantity expands until the two pressures match. If supply pressure is greater, it moves left. On the graph, this is the movement toward the intersection of the downward-sloping demand curve and upward-sloping supply curve.</p>
+          </div>
+          <div>
+            <h2>Historical context</h2>
+            <p>Adam Smith described how self-interest, competition, and market prices coordinate economic activity. The familiar supply-and-demand curves were formalized by later economists. This laboratory connects that classical market tradition to a modern physical analogy; it is not a claim that markets literally obey gas laws.</p>
+          </div>
+        </section>
+      </section>
+
+      <aside aria-label="Laboratory controls">
+        <section class="section">
+          <h2>Chamber controls</h2>
+          <p>Change the forces that shift the demand and supply curves.</p>
+          <div class="group">
+            <h3>Demand chamber</h3>
+            <div class="control"><div class="control-head"><label for="demandN">Buyer intensity nD</label><output id="demandNOut">50</output></div><input id="demandN" type="range" min="20" max="90" step="1" value="50" /></div>
+            <div class="control"><div class="control-head"><label for="demandT">Urgency / temperature TD</label><output id="demandTOut">1.00</output></div><input id="demandT" type="range" min="0.70" max="1.50" step="0.01" value="1.00" /></div>
+            <div class="control"><div class="control-head"><label for="demandZ">Expectation factor ZD</label><output id="demandZOut">1.00</output></div><input id="demandZ" type="range" min="0.80" max="1.20" step="0.01" value="1.00" /></div>
+          </div>
+          <div class="group supply">
+            <h3>Supply chamber</h3>
+            <div class="control"><div class="control-head"><label for="supplyN">Cost pressure nS</label><output id="supplyNOut">50</output></div><input id="supplyN" type="range" min="20" max="90" step="1" value="50" /></div>
+            <div class="control"><div class="control-head"><label for="supplyT">Production stress TS</label><output id="supplyTOut">1.00</output></div><input id="supplyT" type="range" min="0.70" max="1.50" step="0.01" value="1.00" /></div>
+            <div class="control"><div class="control-head"><label for="supplyZ">Constraint factor ZS</label><output id="supplyZOut">1.00</output></div><input id="supplyZ" type="range" min="0.80" max="1.20" step="0.01" value="1.00" /></div>
+          </div>
+          <div class="control"><div class="control-head"><label for="totalVolume">Total market capacity V</label><output id="totalVolumeOut">2.00</output></div><input id="totalVolume" type="range" min="1.60" max="2.80" step="0.02" value="2.00" /></div>
+        </section>
+
+        <section class="section">
+          <div class="switch-row"><span>Piston / quantity adjustment</span><button class="switch" id="lockButton" type="button" aria-pressed="false">Free</button></div>
+        </section>
+
+        <section class="section">
+          <h2>Gas-to-market equations</h2>
+          <p>All variables are normalized, so the model shows relationships rather than real units.</p>
+          <div class="formula-list">
+            <div class="formula"><span>Demand strength</span><code>AD = ZD (nD / 50) TD</code></div>
+            <div class="formula"><span>Supply cost pressure</span><code>AS = ZS (nS / 50) TS</code></div>
+            <div class="formula"><span>Demand curve</span><code>PD(Q) = AD / Q</code></div>
+            <div class="formula"><span>Supply curve</span><code>PS(Q) = AS / (V - Q)</code></div>
+            <div class="formula"><span>Equilibrium quantity</span><code>Q* = V AD / (AD + AS)</code></div>
+            <div class="formula"><span>Equilibrium price</span><code>P* = (AD + AS) / V</code></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Label key</h2>
+          <p>The analogy assigns a market meaning to each gas-model element.</p>
+          <div class="key">
+            <div class="key-row"><code>PD</code><span>Demand-side willingness-to-pay pressure</span></div>
+            <div class="key-row"><code>PS</code><span>Supply-side marginal-cost pressure</span></div>
+            <div class="key-row"><code>Q</code><span>Quantity represented by demand-chamber volume</span></div>
+            <div class="key-row"><code>V-Q</code><span>Remaining supply-chamber volume</span></div>
+            <div class="key-row"><code>PD-PS</code><span>Excess demand or excess supply force</span></div>
+            <div class="key-row"><code>P*</code><span>Price where the market clears</span></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <p class="disclaimer">Teaching model only. Real markets include expectations, institutions, income, inventories, market power, frictions, time delays, and many other forces. The gas chamber is a visual analogy for adjustment toward equilibrium, not a literal economic law or forecasting system.</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      const $ = id => document.getElementById(id);
+      const chamberCanvas = $('chamberCanvas');
+      const curveCanvas = $('curveCanvas');
+      const chamberCtx = chamberCanvas.getContext('2d');
+      const curveCtx = curveCanvas.getContext('2d');
+      const controls = {
+        demandN: $('demandN'), demandT: $('demandT'), demandZ: $('demandZ'),
+        supplyN: $('supplyN'), supplyT: $('supplyT'), supplyZ: $('supplyZ'), totalVolume: $('totalVolume')
+      };
+      const outputs = {
+        demandN: $('demandNOut'), demandT: $('demandTOut'), demandZ: $('demandZOut'),
+        supplyN: $('supplyNOut'), supplyT: $('supplyTOut'), supplyZ: $('supplyZOut'), totalVolume: $('totalVolumeOut'),
+        stateTitle: $('stateTitle'), stateDetail: $('stateDetail'), quantity: $('quantityOut'), price: $('priceOut'), delta: $('deltaOut')
+      };
+      const palette = { bg:'#081015', line:'#29414a', wall:'#56727b', text:'#edf5f3', muted:'#8fa4a8', demand:'#42c8c4', supply:'#ff7c6d', equilibrium:'#efc65d', quantity:'#8eb4ff' };
+      const presets = {
+        balance: { demandN:50, demandT:1, demandZ:1, supplyN:50, supplyT:1, supplyZ:1, totalVolume:2 },
+        demandRise: { demandN:76, demandT:1.22, demandZ:1.06, supplyN:50, supplyT:1, supplyZ:1, totalVolume:2 },
+        supplyExpansion: { demandN:50, demandT:1, demandZ:1, supplyN:34, supplyT:.82, supplyZ:.92, totalVolume:2 },
+        costShock: { demandN:50, demandT:1, demandZ:1, supplyN:74, supplyT:1.25, supplyZ:1.08, totalVolume:2 },
+        hotMarket: { demandN:78, demandT:1.28, demandZ:1.08, supplyN:72, supplyT:1.22, supplyZ:1.05, totalVolume:2.3 }
+      };
+      let chamberW=0, chamberH=0, curveW=0, curveH=0, dpr=1;
+      let piston=.5, velocity=0, paused=false, locked=false, lastTime=performance.now();
+
+      function clamp(value,min,max){ return Math.max(min,Math.min(max,value)); }
+      function values(){ return Object.fromEntries(Object.entries(controls).map(([key,input])=>[key,Number(input.value)])); }
+      function model(){
+        const x=values();
+        const ad=x.demandZ*(x.demandN/50)*x.demandT;
+        const as=x.supplyZ*(x.supplyN/50)*x.supplyT;
+        const vd=x.totalVolume*piston, vs=x.totalVolume-vd;
+        const pd=ad/vd, ps=as/vs, delta=pd-ps;
+        const qStar=x.totalVolume*ad/(ad+as), shareStar=qStar/x.totalVolume, pStar=(ad+as)/x.totalVolume;
+        return {...x,ad,as,vd,vs,pd,ps,delta,qStar,shareStar,pStar};
+      }
+
+      function resizeCanvas(canvas,ctx){
+        const rect=canvas.getBoundingClientRect(); dpr=Math.min(window.devicePixelRatio||1,2);
+        canvas.width=Math.max(1,Math.round(rect.width*dpr)); canvas.height=Math.max(1,Math.round(rect.height*dpr));
+        ctx.setTransform(dpr,0,0,dpr,0,0); return {w:rect.width,h:rect.height};
+      }
+      function resize(){ const a=resizeCanvas(chamberCanvas,chamberCtx), b=resizeCanvas(curveCanvas,curveCtx); chamberW=a.w; chamberH=a.h; curveW=b.w; curveH=b.h; }
+
+      function random(seed){ let x=seed>>>0; return ()=>((x=(x*1664525+1013904223)>>>0)/4294967296); }
+      const particleSeeds={demand:Array.from({length:90},(_,i)=>{const r=random(31+i);return{x:r(),y:r(),size:1.4+r()*1.7}}),supply:Array.from({length:90},(_,i)=>{const r=random(97+i);return{x:r(),y:r(),size:1.4+r()*1.7}})};
+
+      function drawParticles(ctx,list,count,x,y,w,h,color,time){
+        ctx.save(); ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip(); ctx.fillStyle=color;
+        for(let i=0;i<count;i++){
+          const p=list[i], drift=Math.sin(time*.00055+i*1.7)*.018, bounce=Math.cos(time*.00042+i*.9)*.025;
+          const px=x+clamp(.04+p.x*.92+drift,.03,.97)*w, py=y+clamp(.05+p.y*.9+bounce,.04,.96)*h;
+          ctx.globalAlpha=.48+(i%4)*.11; ctx.beginPath(); ctx.arc(px,py,p.size,0,Math.PI*2); ctx.fill();
+        }
+        ctx.restore(); ctx.globalAlpha=1;
+      }
+
+      function arrow(ctx,x1,y1,x2,y2,color){
+        ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        const angle=Math.atan2(y2-y1,x2-x1); ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-6*Math.cos(angle-.45),y2-6*Math.sin(angle-.45)); ctx.lineTo(x2-6*Math.cos(angle+.45),y2-6*Math.sin(angle+.45)); ctx.closePath(); ctx.fill();
+      }
+
+      function drawChamber(s,time){
+        const ctx=chamberCtx,w=chamberW,h=chamberH; ctx.clearRect(0,0,w,h); ctx.fillStyle=palette.bg; ctx.fillRect(0,0,w,h);
+        const left=48,right=w-48,top=105,bottom=h-94,innerW=right-left,innerH=bottom-top,px=left+innerW*piston;
+        ctx.fillStyle='rgba(66,200,196,.065)';ctx.fillRect(left,top,px-left,innerH);ctx.fillStyle='rgba(255,124,109,.065)';ctx.fillRect(px,top,right-px,innerH);
+        drawParticles(ctx,particleSeeds.demand,Math.round(s.demandN),left+5,top+5,Math.max(1,px-left-11),innerH-10,palette.demand,time);
+        drawParticles(ctx,particleSeeds.supply,Math.round(s.supplyN),px+6,top+5,Math.max(1,right-px-11),innerH-10,palette.supply,time);
+        ctx.strokeStyle=palette.wall;ctx.lineWidth=3;ctx.strokeRect(left,top,innerW,innerH);
+        ctx.fillStyle='#c2ced0';ctx.fillRect(px-6,top-7,12,innerH+14);ctx.fillStyle='#74898f';ctx.fillRect(px-2,top-18,4,innerH+36);
+        const arrowCount=6;
+        for(let i=0;i<arrowCount;i++){const y=top+(i+1)*innerH/(arrowCount+1);arrow(ctx,px-31,y,px-9,y,palette.demand);arrow(ctx,px+31,y,px+9,y,palette.supply);}
+        ctx.textAlign='center';ctx.font='700 11px Inter,system-ui,sans-serif';ctx.fillStyle=palette.demand;ctx.fillText('DEMAND CHAMBER',Math.max(left+70,(left+px)/2),top-39);ctx.fillStyle=palette.supply;ctx.fillText('SUPPLY CHAMBER',Math.min(right-70,(px+right)/2),top-39);
+        ctx.font='600 9px Inter,system-ui,sans-serif';ctx.fillStyle=palette.muted;ctx.fillText('BUYER INTENSITY',Math.max(left+70,(left+px)/2),top-23);ctx.fillText('MARGINAL-COST PRESSURE',Math.min(right-75,(px+right)/2),top-23);
+        ctx.font='700 11px Inter,system-ui,sans-serif';ctx.fillStyle=palette.text;ctx.fillText('PD '+s.pd.toFixed(2),Math.max(left+48,(left+px)/2),bottom+29);ctx.fillText('PS '+s.ps.toFixed(2),Math.min(right-48,(px+right)/2),bottom+29);
+        ctx.fillStyle=palette.quantity;ctx.fillText('Q = '+s.vd.toFixed(2),px,bottom+55);ctx.font='600 8px Inter,system-ui,sans-serif';ctx.fillStyle=palette.muted;ctx.fillText('FREE-MOVING PISTON / MARKET QUANTITY',px,bottom+72);
+        if(locked){ctx.fillStyle=palette.equilibrium;ctx.font='700 9px Inter,system-ui,sans-serif';ctx.fillText('PISTON LOCKED',px,top+innerH/2);}
+      }
+
+      function drawCurve(s){
+        const ctx=curveCtx,w=curveW,h=curveH;ctx.clearRect(0,0,w,h);ctx.fillStyle=palette.bg;ctx.fillRect(0,0,w,h);
+        const left=58,right=w-24,top=78,bottom=h-58,plotW=right-left,plotH=bottom-top;
+        const qMin=.08,qMax=.92;
+        const sample=[];let pMax=0;
+        for(let i=0;i<=100;i++){const share=qMin+(qMax-qMin)*i/100,q=s.totalVolume*share,pd=s.ad/q,ps=s.as/(s.totalVolume-q);sample.push({share,pd,ps});pMax=Math.max(pMax,Math.min(pd,8),Math.min(ps,8));}
+        pMax=Math.max(1.4,pMax*1.08);
+        const sx=share=>left+(share-qMin)/(qMax-qMin)*plotW, sy=p=>bottom-clamp(p/pMax,0,1)*plotH;
+        ctx.strokeStyle=palette.line;ctx.lineWidth=1;ctx.font='8px Inter,system-ui,sans-serif';ctx.fillStyle=palette.muted;
+        for(let i=0;i<=4;i++){const y=top+plotH*i/4;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();ctx.textAlign='right';ctx.fillText((pMax*(1-i/4)).toFixed(1),left-8,y+3);}
+        for(let i=0;i<=4;i++){const x=left+plotW*i/4;ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();ctx.textAlign='center';ctx.fillText((qMin+(qMax-qMin)*i/4).toFixed(2),x,bottom+18);}
+        function line(key,color){ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=2.4;sample.forEach((p,i)=>{const x=sx(p.share),y=sy(p[key]);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.stroke();}
+        line('pd',palette.demand);line('ps',palette.supply);
+        const ex=sx(s.shareStar),ey=sy(s.pStar),cx=sx(piston),cdy=sy(s.pd),csy=sy(s.ps);
+        ctx.setLineDash([4,4]);ctx.strokeStyle=palette.equilibrium;ctx.beginPath();ctx.moveTo(ex,bottom);ctx.lineTo(ex,ey);ctx.lineTo(left,ey);ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle=palette.equilibrium;ctx.beginPath();ctx.arc(ex,ey,5,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle=palette.demand;ctx.beginPath();ctx.arc(cx,cdy,4,0,Math.PI*2);ctx.fill();ctx.fillStyle=palette.supply;ctx.beginPath();ctx.arc(cx,csy,4,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle=palette.quantity;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(cx,cdy);ctx.lineTo(cx,csy);ctx.stroke();
+        ctx.font='700 9px Inter,system-ui,sans-serif';ctx.textAlign='left';ctx.fillStyle=palette.demand;ctx.fillText('DEMAND  PD(Q)',left+8,top+15);ctx.fillStyle=palette.supply;ctx.fillText('SUPPLY  PS(Q)',left+8,top+30);
+        ctx.fillStyle=palette.equilibrium;ctx.fillText('EQUILIBRIUM',clamp(ex+9,left+10,right-82),clamp(ey-9,top+12,bottom-8));
+        ctx.save();ctx.translate(15,top+plotH/2);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.fillStyle=palette.muted;ctx.font='700 8px Inter,system-ui,sans-serif';ctx.fillText('PRICE / PRESSURE P',0,0);ctx.restore();
+        ctx.textAlign='center';ctx.fillText('QUANTITY SHARE Q / V',left+plotW/2,h-14);
+      }
+
+      function updateOutputs(s){
+        outputs.demandN.value=s.demandN.toFixed(0);outputs.demandT.value=s.demandT.toFixed(2);outputs.demandZ.value=s.demandZ.toFixed(2);
+        outputs.supplyN.value=s.supplyN.toFixed(0);outputs.supplyT.value=s.supplyT.toFixed(2);outputs.supplyZ.value=s.supplyZ.toFixed(2);outputs.totalVolume.value=s.totalVolume.toFixed(2);
+        outputs.quantity.textContent=s.vd.toFixed(3);outputs.price.textContent=s.pStar.toFixed(3);outputs.delta.textContent=(s.delta>=0?'+':'')+s.delta.toFixed(3);
+        outputs.delta.style.color=Math.abs(s.delta)<.025?palette.equilibrium:(s.delta>0?palette.demand:palette.supply);
+        if(Math.abs(s.delta)<.025&&Math.abs(velocity)<.008){outputs.stateTitle.textContent='Market clearing';outputs.stateDetail.textContent='Demand pressure and supply pressure are balanced.';}
+        else if(s.delta>0){outputs.stateTitle.textContent='Excess demand';outputs.stateDetail.textContent=locked?'Release the piston to let quantity expand.':'Quantity is expanding toward the curve intersection.';}
+        else{outputs.stateTitle.textContent='Excess supply';outputs.stateDetail.textContent=locked?'Release the piston to let quantity contract.':'Quantity is contracting toward the curve intersection.';}
+      }
+
+      function step(now){
+        const dt=Math.min(.035,(now-lastTime)/1000);lastTime=now;let s=model();
+        if(!paused&&!locked){velocity+=s.delta*.40*dt;velocity*=Math.exp(-3.15*dt);piston=clamp(piston+velocity*dt,.12,.88);if(piston===.12||piston===.88)velocity*=-.25;s=model();}
+        updateOutputs(s);drawChamber(s,now);drawCurve(s);requestAnimationFrame(step);
+      }
+      function applyPreset(name){Object.entries(presets[name]).forEach(([key,value])=>controls[key].value=value);piston=.5;velocity=0;document.querySelectorAll('.preset').forEach(button=>button.classList.toggle('active',button.dataset.preset===name));}
+      Object.values(controls).forEach(input=>input.addEventListener('input',()=>document.querySelectorAll('.preset').forEach(button=>button.classList.remove('active'))));
+      document.querySelectorAll('.preset').forEach(button=>button.addEventListener('click',()=>applyPreset(button.dataset.preset)));
+      $('lockButton').addEventListener('click',event=>{locked=!locked;velocity=0;event.currentTarget.setAttribute('aria-pressed',String(locked));event.currentTarget.textContent=locked?'Locked':'Free';});
+      $('pauseButton').addEventListener('click',event=>{paused=!paused;event.currentTarget.innerHTML=paused?'&#9654;':'&#10074;&#10074;';event.currentTarget.title=paused?'Resume animation':'Pause animation';event.currentTarget.setAttribute('aria-label',event.currentTarget.title);});
+      $('resetButton').addEventListener('click',()=>{paused=false;locked=false;$('pauseButton').innerHTML='&#10074;&#10074;';$('pauseButton').title='Pause animation';$('pauseButton').setAttribute('aria-label','Pause animation');$('lockButton').setAttribute('aria-pressed','false');$('lockButton').textContent='Free';applyPreset('balance');});
+      new ResizeObserver(resize).observe(document.querySelector('.workspace'));resize();applyPreset('balance');requestAnimationFrame(step);
+    })();
+  </script>
+</body>
+</html>
